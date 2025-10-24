@@ -50,20 +50,63 @@ export class ReactFlowService {
 			}))
 		];
 
-		const reactFlowEdges = edges.map((edge) => ({
-			id: edge.id,
-			source: edge.source,
-			target: edge.target,
-			label: edge.label,
-			style: edge.label === 'contains'
-				? { stroke: '#9ca3af', strokeDasharray: '5,5', strokeWidth: 1 } // Dashed light gray for containment
-				: edge.id.startsWith('c2_relationship')
-				? { stroke: '#059669', strokeWidth: 2 } // Dark green for C2-C2 relationships
-				: edge.id.startsWith('cross_c1_c2_rel')
-				? { stroke: '#d97706', strokeWidth: 2 } // Dark orange for cross C1-C2 relationships
-				: { stroke: '#374151', strokeWidth: 1 }, // Dark gray for other edges
-			labelStyle: { fill: '#000', fontWeight: '500' },
-		}));
+		const bidirectionalPairs = new Set<string>();
+		const edgeMap = new Map<string, GraphEdge>();
+		
+		edges.forEach(edge => {
+			const forwardKey = `${edge.source}-${edge.target}`;
+			const reverseKey = `${edge.target}-${edge.source}`;
+			edgeMap.set(forwardKey, edge);
+			
+			if (edgeMap.has(reverseKey)) {
+				bidirectionalPairs.add(forwardKey);
+				bidirectionalPairs.add(reverseKey);
+			}
+		});
+
+		const reactFlowEdges = edges.map((edge) => {
+			const edgeKey = `${edge.source}-${edge.target}`;
+			const reverseKey = `${edge.target}-${edge.source}`;
+			const isBidirectional = bidirectionalPairs.has(edgeKey);
+			const isForwardDirection = edgeKey < reverseKey;
+			
+			let strokeColor = '#374151';
+			let strokeWidth = 1;
+			let strokeDasharray = undefined;
+			
+			if (edge.label === 'contains') {
+				strokeColor = '#9ca3af';
+				strokeDasharray = '5,5';
+				strokeWidth = 1;
+			} else if (edge.id.startsWith('c2_relationship')) {
+				strokeColor = '#059669';
+				strokeWidth = 2;
+			} else if (edge.id.startsWith('cross_c1_c2_rel')) {
+				strokeColor = '#d97706';
+				strokeWidth = 2;
+			}
+
+			return {
+				id: edge.id,
+				source: edge.source,
+				target: edge.target,
+				label: edge.label,
+				type: isBidirectional ? 'bidirectional' : 'default',
+				style: { 
+					stroke: strokeColor, 
+					strokeDasharray,
+					strokeWidth 
+				},
+				labelStyle: { 
+					fill: '#000', 
+					fontWeight: '500'
+				},
+				data: {
+					isBidirectional,
+					isForward: isForwardDirection,
+				}
+			};
+		});
 
 		return {
 			nodes: reactFlowNodes,
